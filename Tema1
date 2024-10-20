@@ -1,0 +1,224 @@
+#include <Arduino.h>
+
+#define PIN_BUTON_OPRIRE 2
+#define PIN_BUTON_INCEPUT 3
+#define PIN_LED_RGB_VERDE 4
+#define PIN_LED_RGB_ALBASTRU 5
+#define PIN_LED_RGB_ROSU 6
+#define PIN_LED_ROSU_100 7
+#define PIN_LED_ROSU_75 8
+#define PIN_LED_ALBASTRU_50 9
+#define PIN_LED_GALBEN_25 10
+#define TIMP_INCARCARE 12000
+#define TIMP_OPRIRE_FORCE 1000
+
+int stareButonInceput = HIGH;
+int ultimaStareButonInceput = HIGH;
+
+int stareButonOprire = HIGH;
+long timestampStareConstantaOprire = 0;
+int ultimaStareButonOprire = HIGH;
+
+unsigned long ultimTimpDebounceInceput = 0;
+unsigned long ultimTimpDebounceOprire = 0;
+
+unsigned long int delayDebounce = 50;
+
+long startTimpIncarcare = 0;
+
+int perioadaBlinking = 600;
+
+int blinkingLedGalben25 = false;
+int ultimaStareBlinkingGalben25 = false;
+int ultimBlinkGalben25 = 0;
+
+int blinkingLedAlbastru50 = false;
+int ultimaStareBlinkingAlbastru50 = false;
+int ultimBlinkAlbastru50 = 0;
+
+int blinkingLedRosu75 = false;
+int ultimaStareBlinkingRosu75 = false;
+int ultimBlinkRosu75 = 0;
+
+int blinkingLedRosu100 = false;
+int ultimaStareBlinkingRosu100 = false;
+int ultimBlinkRosu100 = 0;
+
+int incarcare = false;
+
+void IncepeIncarcarea() {
+    digitalWrite(PIN_LED_RGB_VERDE, LOW);
+    digitalWrite(PIN_LED_RGB_ROSU, HIGH);
+    startTimpIncarcare = millis();
+    blinkingLedGalben25 = true;
+    incarcare = true;
+    Serial.print(millis());
+    Serial.print("\n");
+}
+
+void OpresteIncarcarea() {
+    blinkingLedGalben25 = false;
+    blinkingLedAlbastru50 = false;
+    blinkingLedRosu75 = false;
+    blinkingLedRosu100 = false;
+    digitalWrite(PIN_LED_GALBEN_25, LOW);
+    digitalWrite(PIN_LED_ALBASTRU_50, LOW);
+    digitalWrite(PIN_LED_ROSU_75, LOW);
+    digitalWrite(PIN_LED_ROSU_100, LOW);
+    digitalWrite(PIN_LED_RGB_ROSU, LOW);
+    digitalWrite(PIN_LED_RGB_VERDE, HIGH);
+    incarcare = false;
+}
+
+void OpresteIncarcareaFortata() {
+    startTimpIncarcare = (int)millis() - TIMP_INCARCARE;
+}
+
+void setup() {
+    Serial.begin(9600);
+    pinMode(PIN_BUTON_OPRIRE, INPUT_PULLUP);
+    pinMode(PIN_BUTON_INCEPUT, INPUT_PULLUP);
+    for (int i = 4; i <= 10; ++i) // Configurarea pinilor LEDurilor ca iesiri
+        pinMode(i, OUTPUT);
+
+    digitalWrite(PIN_LED_RGB_VERDE, HIGH);
+}
+
+void loop() {
+    int RButonInceput = digitalRead(PIN_BUTON_INCEPUT);
+    int RButonOprire = digitalRead(PIN_BUTON_OPRIRE);
+
+    if (RButonInceput != ultimaStareButonInceput) 
+        ultimTimpDebounceInceput = millis(); // Actualizeaza timpul de debounce
+
+    if (RButonOprire != ultimaStareButonOprire)
+        ultimTimpDebounceOprire = millis();
+
+    if ((millis() - ultimTimpDebounceInceput) > delayDebounce) {
+        if (RButonInceput != stareButonInceput) {
+            stareButonInceput = RButonInceput;
+
+            if (stareButonInceput == LOW && !incarcare) // Daca butonul este apasat si nu este incarcare, incepe incarcarea
+                IncepeIncarcarea();
+        }
+    }
+
+    if ((millis() - ultimTimpDebounceOprire) > delayDebounce) { // Verifica butonul de oprire a fost apasat
+        if (RButonOprire != stareButonOprire) {
+            stareButonOprire = RButonOprire;
+            if (RButonOprire == LOW && ultimaStareButonOprire == HIGH)
+                timestampStareConstantaOprire = millis();
+        } else if (incarcare && stareButonOprire == LOW && millis() - timestampStareConstantaOprire >= TIMP_OPRIRE_FORCE) {
+            OpresteIncarcareaFortata();
+            timestampStareConstantaOprire = millis();
+        }
+    }
+
+    if (millis() - startTimpIncarcare > TIMP_INCARCARE) {
+        if (millis() - startTimpIncarcare <= TIMP_INCARCARE + 4000) {
+            blinkingLedGalben25 = true;
+            blinkingLedAlbastru50 = true;
+            blinkingLedRosu75 = true;
+            blinkingLedRosu100 = true;
+            if (!ultimaStareBlinkingGalben25) {
+                digitalWrite(PIN_LED_ROSU_100, HIGH);
+                digitalWrite(PIN_LED_ROSU_75, HIGH);
+                digitalWrite(PIN_LED_ALBASTRU_50, HIGH);
+                digitalWrite(PIN_LED_GALBEN_25, HIGH);
+                ultimBlinkGalben25 = millis();
+                ultimBlinkAlbastru50 = millis();
+                ultimBlinkRosu75 = millis();
+                ultimBlinkRosu100 = millis();
+            }
+        } else {
+            OpresteIncarcarea();
+        }
+    }
+
+    if (incarcare) {
+        if (millis() - startTimpIncarcare <= TIMP_INCARCARE) {
+            if (millis() - startTimpIncarcare >= TIMP_INCARCARE / 4.0 * 3) {
+                blinkingLedRosu100 = true;
+
+                blinkingLedRosu75 = false;
+                blinkingLedAlbastru50 = false;
+                blinkingLedGalben25 = false;
+                if (!ultimaStareBlinkingRosu100) {
+                    ultimBlinkRosu100 = millis();
+                    digitalWrite(PIN_LED_ROSU_100, HIGH);
+                    digitalWrite(PIN_LED_ROSU_75, HIGH);
+                    digitalWrite(PIN_LED_ALBASTRU_50, HIGH);
+                    digitalWrite(PIN_LED_GALBEN_25, HIGH);
+                }
+            } else if (millis() - startTimpIncarcare >= TIMP_INCARCARE / 2.0) {
+                blinkingLedRosu75 = true;
+
+                blinkingLedRosu100 = false;
+                blinkingLedAlbastru50 = false;
+                blinkingLedGalben25 = false;
+                if (!ultimaStareBlinkingRosu75) {
+                    ultimBlinkRosu75 = millis();
+                    digitalWrite(PIN_LED_ROSU_75, HIGH);
+                    digitalWrite(PIN_LED_ALBASTRU_50, HIGH);
+                    digitalWrite(PIN_LED_GALBEN_25, HIGH);
+                }
+            } else if (millis() - startTimpIncarcare >= TIMP_INCARCARE / 4.0) {
+                blinkingLedAlbastru50 = true;
+
+                blinkingLedRosu75 = false;
+                blinkingLedRosu100 = false;
+                blinkingLedGalben25 = false;
+                if (!ultimaStareBlinkingAlbastru50) {
+                    ultimBlinkAlbastru50 = millis();
+                    digitalWrite(PIN_LED_ALBASTRU_50, HIGH);
+                    digitalWrite(PIN_LED_GALBEN_25, HIGH);
+                }
+            } else {
+                blinkingLedGalben25 = true;
+
+                blinkingLedAlbastru50 = false;
+                blinkingLedRosu75 = false;
+                blinkingLedRosu100 = false;
+                if (!ultimaStareBlinkingGalben25) {
+                    digitalWrite(PIN_LED_GALBEN_25, HIGH);
+                    ultimBlinkGalben25 = millis();
+                }
+            }
+        }
+    }
+
+    if (blinkingLedGalben25) {
+        if (millis() - ultimBlinkGalben25 >= perioadaBlinking) {
+            ultimBlinkGalben25 = millis();
+            digitalWrite(PIN_LED_GALBEN_25, !digitalRead(PIN_LED_GALBEN_25));
+        }
+    }
+
+    if (blinkingLedAlbastru50) {
+        if (millis() - ultimBlinkAlbastru50 >= perioadaBlinking) {
+            ultimBlinkAlbastru50 = millis();
+            digitalWrite(PIN_LED_ALBASTRU_50, !digitalRead(PIN_LED_ALBASTRU_50));
+        }
+    }
+
+    if (blinkingLedRosu75) {
+        if (millis() - ultimBlinkRosu75 >= perioadaBlinking) {
+            ultimBlinkRosu75 = millis();
+            digitalWrite(PIN_LED_ROSU_75, !digitalRead(PIN_LED_ROSU_75));
+        }
+    }
+
+    if (blinkingLedRosu100) {
+        if (millis() - ultimBlinkRosu100 >= perioadaBlinking) {
+            ultimBlinkRosu100 = millis();
+            digitalWrite(PIN_LED_ROSU_100, !digitalRead(PIN_LED_ROSU_100));
+        }
+    }
+
+    ultimaStareButonInceput = RButonInceput;
+    ultimaStareButonOprire = RButonOprire;
+    ultimaStareBlinkingGalben25 = blinkingLedGalben25;
+    ultimaStareBlinkingAlbastru50 = blinkingLedAlbastru50;
+    ultimaStareBlinkingRosu75 = blinkingLedRosu75;
+    ultimaStareBlinkingRosu100 = blinkingLedRosu100;
+}
